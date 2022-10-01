@@ -171,7 +171,7 @@ class Star extends THREE.Mesh
     this.bloomPass.threshold = 0;
     this.bloomPass.strength = 2; //intensity of glow
     this.bloomPass.radius = 0;
-
+    
     this.bloomComposer.setSize(window.innerWidth, window.innerHeight);
     this.bloomComposer.renderToScreen = true;
     this.bloomComposer.addPass(this.renderScene);
@@ -192,6 +192,16 @@ class Star extends THREE.Mesh
       varFolder.add(this,'Period', 0.1, 10000, 0.01).name("Period");
       varFolder.add(this,'MaximumLuminosity', 0.1, 100, 0.01).name("Max Magnitude");
       varFolder.open();
+
+      var obj = { addStar:function(){ 
+        let newStar = new Star();
+        newStar.position.set(0, 0, 0);
+        newStar.Temperature = 5515;
+        newStar.Name = "Your own star!";
+        scene.add(newStar);
+      }};
+
+      gui.add(obj,'addStar');
     }
 
   }
