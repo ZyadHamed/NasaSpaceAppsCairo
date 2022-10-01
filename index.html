@@ -2,24 +2,428 @@
 <html lang="en" dir="ltr">
   <head>
     <meta charset="utf-8">
-    <title>Three.js Tween.js Example</title>
+    <title>Three.js Example</title>
     <style>
       * {
         margin: 0;
         padding: 0;
       }
     </style>
-        <script type="importmap">
-          {
-              "imports": {
-                  "three": "https://unpkg.com/three@0.138.0/build/three.module.js",
-                  "OrbitControls": "https://unpkg.com/three@0.138.0/examples/jsm/controls/OrbitControls.js"
-              }
-          }
-      </script>
-      
+
     <script src="draughts.js"></script>
-    <script type="module" src="game.js"></script>
+    <script async src="https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js"></script>
+
+<script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.138.0/build/three.module.js"
+    }
+  }
+</script>
+<script type="text/javascript" src="papaparse.min.js"></script>
+<script type="module">
+
+  import * as THREE from 'three';
+  import {GUI} from 'https://unpkg.com/three@0.128.0/examples/jsm/libs/dat.gui.module.js';
+  import { OrbitControls } from 'https://unpkg.com/three@0.132.0/examples/jsm/controls/OrbitControls.js';
+  import { RenderPass } from 'https://unpkg.com/three@0.132.0/examples/jsm/postprocessing/RenderPass.js';
+  import { ShaderPass } from 'https://unpkg.com/three@0.132.0/examples/jsm/postprocessing/ShaderPass.js';
+  import { EffectComposer } from 'https://unpkg.com/three@0.132.0/examples/jsm/postprocessing/EffectComposer.js';
+  import { UnrealBloomPass } from 'https://unpkg.com/three@0.132.0/examples/jsm/postprocessing/UnrealBloomPass.js';
+  
+
+var scene, camera, renderer, controls, draughts, board, circle, sphere;
+var star, star2, star3, star4, star5, star6, star7, star8, star9, star10, star11, star12, star13, star14, star15, star16, star17, star18, star19, star20;
+var angle= 30;
+var angleAdditionConstant = 0.01;
+var shiningConstant = 2;
+var Gamma = 0.80;
+var IntensityMax = 255;
+var gui = new GUI();
+var stars = [];
+function waveLengthToRGB(Wavelength) {
+    var factor;
+    var Red, Green, Blue;
+
+    if((Wavelength >= 380) && (Wavelength < 440)) {
+        Red = -(Wavelength - 440) / (440 - 380);
+        Green = 0.0;
+        Blue = 1.0;
+    } else if((Wavelength >= 440) && (Wavelength < 490)) {
+        Red = 0.0;
+        Green = (Wavelength - 440) / (490 - 440);
+        Blue = 1.0;
+    } else if((Wavelength >= 490) && (Wavelength < 510)) {
+        Red = 0.0;
+        Green = 1.0;
+        Blue = -(Wavelength - 510) / (510 - 490);
+    } else if((Wavelength >= 510) && (Wavelength < 580)) {
+        Red = (Wavelength - 510) / (580 - 510);
+        Green = 1.0;
+        Blue = 0.0;
+    } else if((Wavelength >= 580) && (Wavelength < 645)) {
+        Red = 1.0;
+        Green = -(Wavelength - 645) / (645 - 580);
+        Blue = 0.0;
+    } else if((Wavelength >= 645) && (Wavelength < 781)) {
+        Red = 1.0;
+        Green = 0.0;
+        Blue = 0.0;
+    } else {
+        Red = 0.0;
+        Green = 0.0;
+        Blue = 0.0;
+    }
+
+    // Let the intensity fall off near the vision limits
+
+    if((Wavelength >= 380) && (Wavelength < 420)) {
+        factor = 0.3 + 0.7 * (Wavelength - 380) / (420 - 380);
+    } else if((Wavelength >= 420) && (Wavelength < 701)) {
+        factor = 1.0;
+    } else if((Wavelength >= 701) && (Wavelength < 781)) {
+        factor = 0.3 + 0.7 * (780 - Wavelength) / (780 - 700);
+    } else {
+        factor = 0.0;
+    }
+
+
+    var rgb = [0, 0, 0];
+    rgb[0] = Red == 0.0 ? 0 : Math.round(IntensityMax * Math.pow(Red * factor, Gamma));
+    rgb[1] = Green == 0.0 ? 0 : Math.round(IntensityMax * Math.pow(Green * factor, Gamma));
+    rgb[2] = Blue == 0.0 ? 0 : Math.round(IntensityMax * Math.pow(Blue * factor, Gamma));
+    return "0x" + ((1 << 24) + (rgb[0] << 16) + (rgb[1] << 8) + rgb[2]).toString(16).slice(1);
+}
+
+
+class Star extends THREE.Mesh
+{
+  name = "";
+  radius = 1
+  period = 1;
+  temperature = 4000;
+  maximumLuminosity = 2;
+  renderScene = new RenderPass(scene, camera);
+  bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+  bloomComposer = new EffectComposer(renderer);
+	
+  get MaximumLuminosity()
+  {
+    return this.maximumLuminosity;
+  }
+
+  set MaximumLuminosity(x)
+  {
+    this.bloomPass.strength = x;
+    this.maximumLuminosity = x;
+    shiningConstant = x;
+  }
+
+  get Radius()
+  {
+    return this.radius;
+  }
+
+  set Radius(x)
+  {
+    this.scale.setScalar(x * 0.1);
+    this.MaximumLuminosity += (x - this.radius) * 0.1;
+    this.radius = x;
+  }
+
+  get Period()
+  {
+    return this.period;
+  }
+
+  set Period(x)
+  {
+    this.period = x;
+    angleAdditionConstant = 0.01 / x;
+  }
+
+  get Name()
+  {
+    return this.name;
+  }
+
+  set Name(x)
+  {
+    this.name = x;
+  }
+
+  get Temperature()
+  {
+    return this.temperature;
+  }
+
+  set Temperature(x)
+  {
+    let wavelength = Math.round((2.9 * Math.pow(10, 6)) / x);
+    this.material.color.setHex(waveLengthToRGB(wavelength));
+    this.temperature = x;
+  }
+
+  constructor()
+  {
+    super();
+    this.geometry = new THREE.SphereGeometry(1, 32, 16);
+    this.bloomPass.threshold = 0;
+    this.bloomPass.strength = 2; //intensity of glow
+    this.bloomPass.radius = 0;
+
+    this.bloomComposer.setSize(window.innerWidth, window.innerHeight);
+    this.bloomComposer.renderToScreen = true;
+    this.bloomComposer.addPass(this.renderScene);
+    this.bloomComposer.addPass(this.bloomPass);
+    this.callback = function()
+    {
+      gui.destroy();
+      gui = new GUI();
+      var starFolder = gui.addFolder('Star Data');
+      var namebox = starFolder.add(this,'Name', 1, 100, 0.1).name("Star name");
+      namebox.domElement.style.pointerEvents = "none"
+      namebox.domElement.style.opacity = .5;
+      starFolder.add(this,'Radius', 1, 100, 0.1).name("Radius");
+      starFolder.add(this,'Temperature', 3720, 7640, 0.1).name("Temperature");
+      starFolder.open();
+
+      var varFolder = gui.addFolder('Pulsating Data');
+      varFolder.add(this,'Period', 0.1, 10000, 0.01).name("Period");
+      varFolder.add(this,'MaximumLuminosity', 0.1, 100, 0.01).name("Max Magnitude");
+      varFolder.open();
+    }
+
+  }
+
+}
+
+function init()
+{
+    
+    draughts = new Draughts();
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(-58, 0, -58);
+    renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+
+
+    controls = new OrbitControls( camera, renderer.domElement );
+    controls.target.set(4.5, 0, 4.5);
+    controls.enablePan = true;
+    controls.maxPolarAngle = Math.PI / 2;
+    controls.enableDamping = true;
+
+star = new Star();
+star.position.set(3, -2, 4);
+star.Temperature = 4110;
+star.name = "DD Cha";
+scene.add(star);
+
+star2 = new Star();
+star2.position.set(-64, 0, 20);
+star2.Temperature = 7456;
+star2.name = "Y Oct";
+scene.add(star2);
+
+star3 = new Star();
+star3.position.set(63, 9, -15);
+star3.Temperature = 7615;
+star3.name = "X Cha";
+scene.add(star3);
+
+star4 = new Star();
+star4.position.set(-52, 10, -38);
+star4.Temperature = 4840;
+star4.name = "SU Oct";
+scene.add(star4);
+
+star5 = new Star();
+star5.position.set(43, -6, 28);
+star5.Temperature = 4330;
+star5.name = "FX Oct";
+scene.add(star5);
+
+star6 = new Star();
+star6.position.set(17, 10, 36);
+star6.Temperature = 4010;
+star6.name = "GG Oct";
+scene.add(star6);
+
+star7 = new Star();
+star7.position.set(56, -10, -42);
+star7.Temperature = 6763;
+star7.name = "RS Oct";
+scene.add(star7);
+
+star8 = new Star();
+star8.position.set(-3, -23, 49);
+star8.Temperature = 5563;
+star8.name = "FF Oct";
+scene.add(star8);
+
+star9 = new Star();
+star9.position.set(-36, 3, 30);
+star9.Temperature = 7720;
+star9.name = "EI Oct";
+scene.add(star9);
+
+star10 = new Star();
+star10.position.set(50, 9, -8);
+star10.Temperature = 6817;
+star10.name = "EO Oct";
+scene.add(star10);
+
+star11 = new Star();
+star11.position.set(-1, 3, -8);
+star11.Temperature = 7640;
+star11.name = "EH Oct";
+scene.add(star11);
+
+star12 = new Star();
+star12.position.set(-11, 34, 58);
+star12.Temperature = 7640;
+star12.name = "RT Oct";
+scene.add(star12);
+
+star13 = new Star();
+star13.position.set(-112, 25, -43);
+star13.Temperature = 7630;
+star13.name = "EZ Oct";
+scene.add(star13);
+
+star14 = new Star();
+star14.position.set(98,-21, 35);
+star14.Temperature = 7072;
+star14.name = "Z Oct";
+scene.add(star14);
+
+star15 = new Star();
+star15.position.set(-54, 11, -36);
+star15.Temperature = 5238;
+star15.name = "Fl Oct";
+scene.add(star15);
+
+star16 = new Star();
+star16.position.set(-54, 11, -19);
+star16.Temperature = 3720;
+star16.name = "GO Oct";
+scene.add(star16);
+
+star17 = new Star();
+star17.position.set(72, 43, -68);
+star17.Temperature = 5606;
+star17.name = "EP Oct";
+scene.add(star17);
+
+star18 = new Star();
+star18.position.set(-68, -19, 43);
+star18.Temperature = 5913;
+star18.name = "UW Men";
+scene.add(star18);
+
+star19 = new Star();
+star19.position.set(83, 37, -25);
+star19.Temperature = 6784;
+star19.name = "FM Oct";
+scene.add(star19);
+
+star20 = new Star();
+star20.position.set(-92, -8, -23);
+star20.Temperature = 4908;
+star20.name = "DY Oct";
+scene.add(star20);
+
+// galaxy geometry
+const starGeometry = new THREE.SphereGeometry(80, 64, 64);
+const texture = new THREE.TextureLoader().load( 'galaxy1.png' );
+// galaxy material
+const starMaterial = new THREE.MeshBasicMaterial({
+  map: texture,
+  side: THREE.BackSide,
+  transparent: true,
+});
+
+// galaxy mesh
+const starMesh = new THREE.Mesh(starGeometry, starMaterial);
+scene.add(starMesh);
+
+const ambientlight = new THREE.AmbientLight(0xffffff, 1);
+scene.add(ambientlight);
+
+window.requestAnimationFrame(animate);
+  
+}
+
+function animate() 
+{
+  controls.update();
+  renderer.render(scene, camera);
+  window.requestAnimationFrame(animate);
+
+  if(angle >= 150)
+  {
+    angle = 30;
+  }
+  
+    star.bloomPass.strength = shiningConstant * Math.abs(Math.sin(angle * (180 / Math.PI)));
+    star.bloomComposer.render();
+
+    star2.bloomPass.strength = shiningConstant * Math.abs(Math.sin(angle * (180 / Math.PI)));
+    star2.bloomComposer.render();
+
+    star3.bloomPass.strength = shiningConstant * Math.abs(Math.sin(angle * (180 / Math.PI)));
+    star3.bloomComposer.render();
+
+    star4.bloomPass.strength = shiningConstant * Math.abs(Math.sin(angle * (180 / Math.PI)));
+    star4.bloomComposer.render();
+
+    angle += angleAdditionConstant;
+  
+}
+ 
+function onWindowResize() 
+{
+ 
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize( window.innerWidth, window.innerHeight );
+ 
+}
+ 
+ 
+window.addEventListener('resize', onWindowResize);
+window.addEventListener('click', onDocumentMouseDown, false);
+
+var raycaster = new THREE.Raycaster();
+var mouse = new THREE.Vector2();
+
+function onDocumentMouseDown( event ) {
+
+    event.preventDefault();
+
+    mouse.x = ( event.clientX / renderer.domElement.clientWidth ) * 2 - 1;
+    mouse.y = - ( event.clientY / renderer.domElement.clientHeight ) * 2 + 1;
+
+    raycaster.setFromCamera( mouse, camera );
+
+    var intersects = raycaster.intersectObjects( scene.children ); 
+
+    if ( intersects.length > 0 ) {
+
+        intersects[0].object.callback();
+
+    }
+
+}
+
+
+window.onload = init;
+
+</script>
   </head>
   <body>
  
